@@ -16,6 +16,7 @@ import os
 import numpy as np
 import boto3
 from io import StringIO
+from werkzeug.utils import secure_filename
 
 bootstrap = Bootstrap(app)
 
@@ -233,3 +234,34 @@ def feedback(h_list,u_list,h_conf_list,u_conf_list):
     return render_template('feedback.html', healthy_list = h_feedback_result, unhealthy_list = u_feedback_result, healthy_conf_list = h_conf_result, unhealthy_conf_list = u_conf_result, h_list_length = h_length, u_list_length = u_length)
 
 #app.run( host='127.0.0.1', port=5000, debug='True', use_reloader = False)
+
+
+upload_folder = 'app/static/uploads'
+allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+os.makedirs(upload_folder, exist_ok=True)
+app.config['upload_folder'] = upload_folder
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload_file():
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['upload_folder'], filename)
+            file.save(file_path)
+            flash('Image uploaded successfully')
+            return render_template('upload.html', filename=filename)
+        
+        flash('Invalid file type. Allowed: png, jpg, jpeg')
+    return render_template('upload.html', filename=None)
