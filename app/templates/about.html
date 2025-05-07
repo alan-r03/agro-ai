@@ -1,11 +1,72 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='styles/about.css') }}">
 
-<div class="column-container">
-  <div class="card-container heatmap-page">
-    <div class="card label-card heatmap-card">
-      <label class="card-label">About Agro-AI / mAIze</label>
+<div class="container my-5">
+  <div class="card about-card mx-auto">
+    <div class="card-header text-center">
+      <h2>About Agro-AI / mAIze</h2>
+    </div>
+
+    <div class="card-body">
+      
+      <section class="mb-4">
+        <h4>Background &amp; Motivation</h4>
+        <p>
+          The future of food production is confronted with major challenges, 
+          including a declining farming workforce, an aging population of farmers, 
+          and increasing global food demand. At present, identifying blighted plants 
+          is a manual and time-intensive task, which hampers farming efficiency. ​ 
+        </section></p>
+        <p>
+          The Agro-AI project addresses this issue by leveraging machine learning to 
+          automate the detection of plant blight. Its goal is to enhance crop yields 
+          while minimizing the need for manual labor. Additionally, the project 
+          showcases how artificial intelligence and machine learning can revolutionize 
+          agriculture, offering meaningful insights to support farmers and industry 
+          professionals. 
+        </p>
+      </section>
+
+      <section class="mb-4">
+        <h4>Main Features</h4>
+        <ul>
+          <li>Label images as “Healthy” or “Unhealthy” through a simple UI</li>
+          <li>Train/retrain a binary classifier right in your browser session</li>
+          <li>Generate Grad-CAM heatmaps to interpret model decisions</li>
+          <li>Review model confidence and feedback</li>
+        </ul>
+      </section>
+
+      <section class="mb-4">
+        <h4>Architecture &amp; Tech Stack</h4>
+        <ul>
+          <li><strong>Frontend:</strong> Flask + Bootstrap templates</li>
+          <li><strong>Backend:</strong> Flask (Python), TensorFlow/Keras</li>
+          <li><strong>Storage:</strong> Redis for session &amp; cache</li>
+          <li><strong>Deployment:</strong> Unix/Linux host</li>
+        </ul>
+      </section>
+
+      <section class="mb-4">
+        <h4>Development Process</h4>
+        <p>
+          We collaborated on GitHub, used VS Code for daily work, and followed an MVC pattern 
+          in Flask.  Redis stores intermediate labels, while Keras handles training, and we 
+          expose everything via simple Flask routes and Jinja2 views.
+        </p>
+      </section>
+
+      <section class="mb-0">
+        <h4>Technical Challenges</h4>
+        <ul>
+          <li>Integrating on-the-fly ML training into a web session</li>
+          <li>Building an intuitive labeling interface</li>
+          <li>Session management &amp; caching with Redis</li>
+          <li>Rendering Grad-CAM overlays cleanly in HTML</li>
+        </ul>
+      </section>
     </div>
   </div>
 
@@ -15,5 +76,4 @@
     </a>
   </div>
 </div>
-
 {% endblock %}
