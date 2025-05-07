@@ -10,6 +10,7 @@ from wtforms import RadioField, SubmitField
 from wtforms.validators import DataRequired
 from sklearn.model_selection import train_test_split
 from PIL import Image
+from .builder import build_model
 import os, cv2, pandas as pd, numpy as np, time, keras, tensorflow as tf, shutil
 
 class LabelForm(FlaskForm):
@@ -48,25 +49,7 @@ def home():
     session['x_train'], session['x_test'], session['y_train'], session['y_test'] = train_test_split(images, labels, test_size=0.1, random_state=int(time.time()))
 
     # step 2 - create model, compile model, save bare model to static
-    inputLayer = keras.Input(shape=(256, 256, 3), name='input_layer')
-    x = keras.layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputLayer)
-    x = keras.layers.BatchNormalization()(x)
-    x = keras.layers.MaxPooling2D((2, 2))(x)
-    x = keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
-    x = keras.layers.BatchNormalization()(x)
-    x = keras.layers.MaxPooling2D((2, 2))(x)
-    x = keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
-    x = keras.layers.BatchNormalization()(x)
-    x = keras.layers.MaxPooling2D((2, 2))(x)
-    x = keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', name="attention_layer")(x)
-    x = keras.layers.GlobalAveragePooling2D()(x)
-    x = keras.layers.Dense(128, activation='relu')(x)
-    x = keras.layers.Dropout(0.5)(x)
-    output = keras.layers.Dense(1, activation='sigmoid')(x)
-
-    model = keras.Model(inputs=inputLayer, outputs=output)
-    print(model.summary())
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model = build_model()
     model.save(MODEL_PATH)
 
     return render_template('index.html')
