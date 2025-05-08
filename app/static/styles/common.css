@@ -376,6 +376,19 @@ body {
   transform: none !important;
 }
 
+.card.about-card {
+  flex-direction: column;
+  height: auto;
+  min-height: 638px;
+  padding-bottom: 2rem;
+}
+
+.card.about-card .card-header {
+  width: 100%;
+  text-align: center;
+  border: none;
+}
+
 .navbar-button-container {
   margin-top: 2rem;
 }
