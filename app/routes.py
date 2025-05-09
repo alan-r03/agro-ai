@@ -49,7 +49,6 @@ def home():
     # split 10% for initial training
     x_init, x_rest, y_init, y_rest = train_test_split(images, labels, test_size=0.85, random_state=int(time.time()))
 
-    # split remaining 90% into 10% test and 80% user training pool
     x_user, x_test, y_user, y_test = train_test_split(x_rest, y_rest, test_size=1/9, random_state=int(time.time()))
 
     # save to session for user training later
@@ -57,6 +56,7 @@ def home():
     session['y_test'] = y_test
     session['x_train'] = x_user
     session['y_train'] = y_user
+    print(x_test, y_test, x_user, y_user)
 
     # step 2 - create and pretrain model
     model = build_model()
@@ -241,6 +241,7 @@ def final():
     # Load test image names and labels
     x_test = session['x_test']
     y_test = session['y_test']
+    print(x_test)
 
     test_imgs = []
     for imgName in x_test:
@@ -294,6 +295,8 @@ def final():
 def gradcam():
     imgName = request.json.get('image_path').split('/')[-1]
     imgPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', imgName)
+    print(f"[DEBUG] __file__: {__file__}")
+    print(f"[DEBUG] imgPath: {imgPath}")
 
     # Preprocess image
     img = Image.open(imgPath).convert('HSV').resize((256, 256))
@@ -305,5 +308,6 @@ def gradcam():
     # Generate heatmap
     hmpArr = logic.make_gradcam_heatmap(imgArr, model)
     hmpName = logic.save_and_overlay_heatmap(imgName, imgPath, hmpArr)
+    
 
     return jsonify({'gradcam_url': url_for('static', filename=f'imgHeatmap/{hmpName}')})

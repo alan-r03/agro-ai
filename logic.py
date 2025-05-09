@@ -39,9 +39,10 @@ def save_and_overlay_heatmap(imgName, imgPath, hmpArr, alpha=0.4):
     hmpColor = cv2.applyColorMap(hmpArr, cv2.COLORMAP_JET)
     hmpOverlay = cv2.addWeighted(img, 1 - alpha, hmpColor, alpha, 0)
 
-    hmpPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHeatmap', f'heatmap_{imgName}')
+    hmpPath = os.path.join(os.path.dirname(__file__), 'app', 'static', 'imgHeatmap', f'heatmap_{imgName}')
     os.makedirs(os.path.dirname(hmpPath), exist_ok=True)
     cv2.imwrite(hmpPath, hmpOverlay)
+    print(f"[DEBUG] Saving heatmap to: {hmpPath}")
 
     return hmpName
 
