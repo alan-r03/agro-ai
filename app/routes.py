@@ -11,7 +11,7 @@ from wtforms.validators import DataRequired
 from sklearn.model_selection import train_test_split
 from PIL import Image
 from .builder import build_model
-import os, cv2, pandas as pd, numpy as np, time, keras, tensorflow as tf, shutil
+import os, cv2, pandas as pd, numpy as np, time, keras, tensorflow as tf, shutil, logic
 
 class LabelForm(FlaskForm):
     choice = RadioField(u'Label', choices=[(0, u'Healthy'), (1, u'Unhealthy')], validators = [DataRequired(message='Cannot be empty')])
@@ -46,10 +46,42 @@ def home():
         else:
             labels.append(1)
 
-    session['x_train'], session['x_test'], session['y_train'], session['y_test'] = train_test_split(images, labels, test_size=0.1, random_state=int(time.time()))
+    # split 10% for initial training
+    x_init, x_rest, y_init, y_rest = train_test_split(images, labels, test_size=0.85, random_state=int(time.time()))
 
-    # step 2 - create model, compile model, save bare model to static
+    # split remaining 90% into 10% test and 80% user training pool
+    x_user, x_test, y_user, y_test = train_test_split(x_rest, y_rest, test_size=1/9, random_state=int(time.time()))
+
+    # save to session for user training later
+    session['x_test'] = x_test
+    session['y_test'] = y_test
+    session['x_train'] = x_user
+    session['y_train'] = y_user
+
+    # step 2 - create and pretrain model
     model = build_model()
+
+    # load and preprocess images for initial training
+    image_dir = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld')
+    x_init_data = []
+    y_init_filtered = []
+
+    for img_name, label in zip(x_init, y_init):
+        img_path = os.path.join(image_dir, img_name)
+        img = cv2.imread(img_path)
+        if img is not None:
+            img = cv2.resize(img, (256, 256))
+            x_init_data.append(img)
+            y_init_filtered.append(label)
+        else:
+            print(f"[WARN] Could not read image: {img_path}")
+
+    x_init_data = np.array(x_init_data) / 255.0
+    y_init_data = np.array(y_init_filtered)
+
+    model.fit(x_init_data, y_init_data, epochs=2, batch_size=24, verbose=1)
+
+    # save pretrained model to static
     model.save(MODEL_PATH)
 
     return render_template('index.html')
@@ -124,8 +156,8 @@ def intermediate():
     for imgName in x_user:
         imgPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', imgName)
 
-        # Open image, convert to RGB, resize to 256x256
-        img = Image.open(imgPath).convert('RGB').resize((256, 256))
+        # Open image, convert to HSV, resize to 256x256
+        img = Image.open(imgPath).convert('HSV').resize((256, 256))
 
         # Convert to NumPy array and normalize (0-255 -> 0-1)
         imgArr = np.array(img, dtype=np.float32) / 255.0
@@ -138,7 +170,7 @@ def intermediate():
         imgPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', imgName)
 
         # Open image, convert to RGB, resize to 256x256
-        img = Image.open(imgPath).convert('RGB').resize((256, 256))
+        img = Image.open(imgPath).convert('HSV').resize((256, 256))
 
         # Convert to NumPy array and normalize (0-255 -> 0-1)
         imgArr = np.array(img, dtype=np.float32) / 255.0
@@ -151,7 +183,7 @@ def intermediate():
     model = keras.models.load_model(MODEL_PATH)
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     
-    model.fit(x_user, y_user, epochs=1, batch_size=len(x_user), verbose=1)
+    model.fit(logic.green_mask_crop(x_user), y_user, epochs=1, batch_size=len(x_user), verbose=1)
 
     loss, accuracy = model.evaluate(test_x, test_y, verbose=0)
     loss = f'{loss * 100:.2f}'
@@ -195,7 +227,7 @@ def final():
 
         for img_name in batch_x:
             img_path = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', img_name)
-            img = Image.open(img_path).convert('RGB').resize((256, 256))
+            img = Image.open(img_path).convert('HSV').resize((256, 256))
             img_arr = np.array(img, dtype=np.float32) / 255.0
             batch_imgs.append(img_arr)
 
@@ -213,7 +245,7 @@ def final():
     test_imgs = []
     for imgName in x_test:
         imgPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', imgName)
-        img = Image.open(imgPath).convert('RGB').resize((256, 256))
+        img = Image.open(imgPath).convert('HSV').resize((256, 256))
         imgArr = np.array(img, dtype=np.float32) / 255.0
         test_imgs.append(imgArr)
 
@@ -264,56 +296,14 @@ def gradcam():
     imgPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHandheld', imgName)
 
     # Preprocess image
-    img = Image.open(imgPath).convert('RGB').resize((256, 256))
+    img = Image.open(imgPath).convert('HSV').resize((256, 256))
     imgArr = np.expand_dims(np.array(img, dtype=np.float32) / 255.0, axis=0)
 
     # Load keras models
     model = keras.models.load_model(os.path.join(os.path.dirname(__file__), 'static', 'model.weights.keras'))
 
     # Generate heatmap
-    hmpArr = make_gradcam_heatmap(imgArr, model)
-    hmpName = save_and_overlay_heatmap(imgName, imgPath, hmpArr)
+    hmpArr = logic.make_gradcam_heatmap(imgArr, model)
+    hmpName = logic.save_and_overlay_heatmap(imgName, imgPath, hmpArr)
 
     return jsonify({'gradcam_url': url_for('static', filename=f'imgHeatmap/{hmpName}')})
-
-
-def make_gradcam_heatmap(imgArr, model, pred_index=None):
-    # Create model mapping input -> attention layer + output
-    grad_model = keras.models.Model(
-        inputs=model.input,
-        outputs=[model.get_layer("attention_layer").output, model.output]
-    )
-
-    with tf.GradientTape() as tape:
-        last_conv_layer_output, preds = grad_model(imgArr)
-        if pred_index is None:
-            pred_index = tf.argmax(preds[0])
-        class_channel = preds[:, pred_index]
-
-    # Compute gradients
-    grads = tape.gradient(class_channel, last_conv_layer_output)
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-
-    # Weight the channels by importance
-    last_conv_layer_output = last_conv_layer_output[0]
-    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
-    heatmap = tf.squeeze(heatmap)
-
-    # Normalize the heatmap
-    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
-    return heatmap.numpy()
-
-def save_and_overlay_heatmap(imgName, imgPath, hmpArr, alpha=0.4):
-    img = cv2.imread(imgPath)
-
-    hmpName = f'heatmap_{imgName}'
-    hmpArr = cv2.resize(hmpArr, (img.shape[1], img.shape[0]))
-    hmpArr = np.uint8(255 * hmpArr)
-    hmpColor = cv2.applyColorMap(hmpArr, cv2.COLORMAP_JET)
-    hmpOverlay = cv2.addWeighted(img, 1 - alpha, hmpColor, alpha, 0)
-
-    hmpPath = os.path.join(os.path.dirname(__file__), 'static', 'imgHeatmap', f'heatmap_{imgName}')
-    os.makedirs(os.path.dirname(hmpPath), exist_ok=True)
-    cv2.imwrite(hmpPath, hmpOverlay)
-
-    return hmpName
